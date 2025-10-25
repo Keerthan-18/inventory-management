@@ -4,4 +4,4 @@ from .models import Medicine
 class MedicineForm(forms.ModelForm):
     class Meta:
         model = Medicine
-        fields=['name', 'category', 'quantity', 'price', 'expiry_date']
+        fields=['name', 'category', 'quantity', 'price', 'expiry_date', 'reorder_level']

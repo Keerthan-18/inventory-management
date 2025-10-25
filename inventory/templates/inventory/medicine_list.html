@@ -3,93 +3,240 @@
 {% block title %}Medicine Inventory{% endblock %}
 
 {% block content %}
-<!-- 🔍 AI Query Box -->
-<div class="card shadow-sm mb-4">
-  <div class="card-body">
-    <h5 class="card-title text-primary">🤖 Ask MedAI Assistant</h5>
-    <form method="post" action="{% url 'ai_query' %}">
-        {% csrf_token %}
-        <div class="input-group">
-            <input type="text" name="query" class="form-control" 
-                   placeholder="Ask about medicines... e.g. 'How many Paracetamol left?'" required>
-            <button type="submit" class="btn btn-primary">
-                Ask
-            </button>
-        </div>
-    </form>
+<style>
+  /*  Chatbox Styling */
+  .chatbox {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      padding: 25px;
+      max-width: 750px;
+      margin: 0 auto 50px auto;
+  }
 
+  .chatbox h5 {
+      font-weight: 600;
+  }
+
+  .chat-messages {
+      max-height: 350px;
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 15px;
+      background: #f8f9fa;
+      font-family: "Segoe UI", sans-serif;
+  }
+
+  .message {
+      margin-bottom: 14px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+  }
+
+  .user-msg {
+      text-align: right;
+  }
+
+  .user-msg span {
+      background: #007bff;
+      color: white;
+      padding: 10px 14px;
+      border-radius: 15px 15px 0 15px;
+      display: inline-block;
+      max-width: 80%;
+  }
+
+  .bot-msg span {
+      background: #e9ecef;
+      color: #222;
+      padding: 10px 14px;
+      border-radius: 15px 15px 15px 0;
+      display: inline-block;
+      max-width: 85%;
+      white-space: pre-line; /* ✅ keeps line breaks from AI text */
+  }
+
+  .bot-msg strong {
+      color: #007bff;
+  }
+
+  /* Smooth scroll effect */
+  .chat-messages {
+      scroll-behavior: smooth;
+  }
+
+  /* Input section */
+  .ai-input {
+      margin-top: 15px;
+  }
+
+  .ai-input input {
+      border-radius: 10px 0 0 10px;
+  }
+
+  .ai-input button {
+      border-radius: 0 10px 10px 0;
+  }
+</style>
+
+<!-- AI Assistant Section -->
+<div class="chatbox shadow-sm">
+  <h5 class="text-primary mb-3">🤖 MedAI Assistant</h5>
+  <div class="chat-messages" id="chatMessages">
     {% if ai_response %}
-      <div class="alert alert-info mt-3">
-          <strong>MedAI:</strong> {{ ai_response }}
+      <div class="bot-msg message">
+        <span><strong>MedAI:</strong><br>{{ ai_response|linebreaks }}</span>
       </div>
     {% endif %}
   </div>
+
+  <form id="aiForm" method="post" class="ai-input">
+      {% csrf_token %}
+      <div class="input-group">
+          <input 
+              type="text" 
+              id="aiQuery" 
+              name="query" 
+              class="form-control" 
+              placeholder="Ask something... e.g. 'Which medicines are expiring soon?'" 
+              required
+          >
+          <button type="submit" class="btn btn-primary">Ask</button>
+      </div>
+  </form>
 </div>
 
-<div class="container mt-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="text-primary">💊 Medicine Inventory</h1>
-        <a href="{% url 'medicine_add' %}" class="btn btn-success">+ Add Medicine</a>
+<!--  Medicine Inventory Table -->
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="text-primary">💊 Medicine Inventory</h1>
+    <a href="{% url 'medicine_add' %}" class="btn btn-success">+ Add Medicine</a>
+  </div>
+
+  <!--  Search Bar -->
+  <form method="get" class="mb-3 d-flex">
+    <input 
+        type="text" 
+        name="q" 
+        class="form-control me-2" 
+        placeholder="Search by name or category..." 
+        value="{{ query }}"
+    >
+    <button type="submit" class="btn btn-outline-primary">Search</button>
+  </form>
+
+  <!--  Inventory Table -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <table class="table table-hover align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th>Expiry Date</th>
+            <th>Alerts</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for medicine in medicines %}
+            <tr>
+              <td>{{ medicine.name }}</td>
+              <td>{{ medicine.category }}</td>
+              <td>
+                {% if medicine.low_stock %}
+                  <span class="badge bg-danger">{{ medicine.quantity }}</span>
+                {% else %}
+                  {{ medicine.quantity }}
+                {% endif %}
+              </td>
+              <td>₹ {{ medicine.price }}</td>
+              <td>{{ medicine.expiry_date }}</td>
+              <td>
+                {% if medicine.low_stock %}
+                  <span class="badge bg-danger">⚠ Low Stock</span>
+                {% endif %}
+                {% if medicine.expiring_soon %}
+                  <span class="badge bg-warning text-dark">⚠ Expiring Soon</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <a href="{% url 'medicine_edit' medicine.id %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                <a href="{% url 'medicine_delete' medicine.id %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure?');">Delete</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center text-muted">No medicines found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+  </div>
+</div>
 
-    <!-- Search Bar -->
-    <form method="get" class="mb-3 d-flex">
-        <input type="text" name="q" class="form-control me-2" placeholder="Search by name or category..." value="{{ query }}">
-        <button type="submit" class="btn btn-outline-primary">Search</button>
-    </form>
+<!-- JavaScript for Dynamic AI Chat -->
+<script>
+document.getElementById("aiForm").addEventListener("submit", async function(e) {
+    e.preventDefault();
 
-    <!-- Table -->
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <table class="table table-hover align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Name</th>
-                        <th>Category</th>
-                        <th>Quantity</th>
-                        <th>Price</th>
-                        <th>Expiry Date</th>
-                        <th>Alerts</th>
-                        <th class="text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for medicine in medicines %}
-                    <tr>
-                        <td>{{ medicine.name }}</td>
-                        <td>{{ medicine.category }}</td>
-                        <td>
-                            {% if medicine.low_stock %}
-                                <span class="badge bg-danger">{{ medicine.quantity }}</span>
-                            {% else %}
-                                {{ medicine.quantity }}
-                            {% endif %}
-                        </td>
-                        <td>₹ {{ medicine.price }}</td>
-                        <td>{{ medicine.expiry_date }}</td>
-                        <td>
-                            {% if medicine.low_stock %}
-                                <span class="badge bg-danger">⚠ Low Stock</span>
-                            {% endif %}
-                            {% if medicine.expiring_soon %}
-                                <span class="badge bg-warning text-dark">⚠ Expiring Soon</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            <a href="{% url 'medicine_edit' medicine.id %}" class="btn btn-sm btn-outline-primary">Edit</a>
-                            <a href="{% url 'medicine_delete' medicine.id %}" class="btn btn-sm btn-outline-danger"
-                               onclick="return confirm('Are you sure you want to delete this medicine?');">Delete</a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="7" class="text-center text-muted">No medicines found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    const queryInput = document.getElementById("aiQuery");
+    const query = queryInput.value.trim();
+    const chatBox = document.getElementById("chatMessages");
+
+    if (!query) return;
+
+    // Show user's question instantly
+    chatBox.innerHTML += `
+        <div class="user-msg message">
+            <span>${query}</span>
         </div>
-    </div>
-</div>
+    `;
+    queryInput.value = "";
+
+    // Fetch AI response
+    const response = await fetch("{% url 'ai_query' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: new URLSearchParams({ query: query })
+    });
+
+    const data = await response.json();
+
+    if (data.reply) {
+        const formattedReply = data.reply
+            .replace(/\\u20b9/g, "₹")                        
+            .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") 
+            .replace(/•/g, "- ")                              
+            .replace(/\n{2,}/g, "<br><br>")                   
+            .replace(/\n/g, "<br>");                          
+
+        chatBox.innerHTML += `
+            <div class="bot-msg message">
+                <span><strong>MedAI:</strong><br>${formattedReply}</span>
+            </div>
+        `;
+    } 
+    else if (data.error) {
+        chatBox.innerHTML += `
+            <div class="bot-msg message text-danger">
+                <span><strong>Error:</strong> ${data.error}</span>
+            </div>
+        `;
+    }
+
+    // Always scroll to the latest message
+    chatBox.scrollTop = chatBox.scrollHeight;
+});
+</script>
+
 {% endblock %}
 

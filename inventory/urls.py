@@ -13,4 +13,6 @@ urlpatterns = [
     path('ai_query/', views.ai_query, name="ai_query"),
     path('login/', auth_views.LoginView.as_view(template_name='inventory/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
+    path('test-gemini/', views.test_gemini, name='test_gemini'),
+    path("list-models/", views.list_models, name="list_models"),
 ]

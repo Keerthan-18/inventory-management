@@ -1,4 +1,5 @@
 # Django-related
+.env
 *.pyc
 __pycache__/
 *.log
@@ -7,7 +8,7 @@ __pycache__/
 db.sqlite3
 
 # Virtual environments
-.env
+
 venv/
 .venv/
 env/
@@ -28,3 +29,4 @@ staticfiles/
 media/
 
 */migrations/__pycache__/
+.env

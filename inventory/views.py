@@ -1,7 +1,16 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse
 from datetime import date, timedelta
+import os
+import google.generativeai as genai
+from dotenv import load_dotenv
+from django.conf import settings
 
+load_dotenv()
+genai.configure(api_key=settings.GOOGLE_API_KEY)
+# AIzaSyBQRwJ
+
+from django.http import JsonResponse
 from .models import Medicine
 from .forms import MedicineForm
 
@@ -42,6 +51,8 @@ def medicine_add(request):
         if form.is_valid():
             form.save()
             return redirect('medicine_list')
+        else:
+            print(form.errors)
     else:
         form = MedicineForm()
     return render(request, 'inventory/medicine_form.html', {'form': form})
@@ -54,6 +65,9 @@ def medicine_edit(request, pk):
         if form.is_valid():
             form.save()
             return redirect('medicine_list')
+        else:
+            print("Form errors:", form.errors)
+            
     else:
         form = MedicineForm(instance=medicine)
     return render(request, 'inventory/medicine_form.html', {'form': form})
@@ -75,61 +89,94 @@ def api_medicines(request):
     serializer = MedicineSerializer(medicines, many=True)
     return Response(serializer.data)
 
+
+def test_gemini(request):
+    try:
+        model=genai.GenerativeModel("gemini-2.5-flash")
+        response=model.generate_content("Hello Gemini, are you working?")
+        return JsonResponse({'reply': response.text})
+    except Exception as e:
+        return JsonResponse({"error": str(e)})
+
+
+
+
+from django.db import models
 from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse, HttpResponse
+import google.generativeai as genai
 
 @csrf_exempt
 def ai_query(request):
-    from datetime import date
-    today = date.today()
-    ai_response = ""
+    if request.method == 'POST':
+        user_query = request.POST.get('query', "").strip()
 
-    if request.method == "POST":
-        query = request.POST.get("query", "").lower()
+        try:
+            
+            model = genai.GenerativeModel("models/gemini-2.5-flash")
+            medicines = Medicine.objects.all()
+            medicine_data = "\n".join(
+                [f"{m.name} | {m.category} | Qty: {m.quantity} | Price: ₹{m.price} | Expiry: {m.expiry_date}"
+                 for m in medicines]
+            )
 
-        
-        if "low stock" in query:
-            low_items = Medicine.objects.filter(quantity__lt=10)
-            if low_items.exists():
-                ai_response = "Low stock medicines: " + ", ".join(m.name for m in low_items)
+            inventory_keywords = ["stock", "quantity", "available", "expired", "expiring", "price", "low stock"]
+            is_inventory_related = any(word in user_query.lower() for word in inventory_keywords)
+
+            # Create context-aware system prompt
+            if is_inventory_related:
+                prompt = f"""
+                You are MedAI, an intelligent pharmacy assistant managing this medicine inventory:
+
+                {medicine_data}
+
+                The user asked: "{user_query}"
+
+                Using the data above, respond ONLY with medicines that match the question.
+                - Show results in a neat readable list or table format.
+                - Use bullet points (•) and line breaks for clarity.
+                - Do NOT make up medicines that are not in the list.
+                - Example: “• Paracetamol — Qty: 12 | Expiry: 2026-04-12 | Price: ₹25.00”
+                """
             else:
-                ai_response = "All medicines are sufficiently stocked."
+                prompt = f"""
+                You are MedAI, a trusted pharmacy and medical guidance assistant.
 
-        
-        elif "expired" in query:
-            expired = Medicine.objects.filter(expiry_date__lt=today)
-            if expired.exists():
-                ai_response = "Expired medicines: " + ", ".join(m.name for m in expired)
-            else:
-                ai_response = "No medicines are expired."
+                The user asked: "{user_query}"
 
-        
-        elif "expiring soon" in query:
-            from datetime import timedelta
-            soon = Medicine.objects.filter(expiry_date__lte=today + timedelta(days=30), expiry_date__gte=today)
-            if soon.exists():
-                ai_response = "Expiring soon: " + ", ".join(m.name for m in soon)
-            else:
-                ai_response = "No medicines expiring within 30 days."
+                Provide a clear, medically sound, and concise answer about:
+                - When the medicine should be prescribed
+                - How often to take it
+                - Whether before or after meals
+                - Any common precautions or warnings.
 
-        
-        elif "how many" in query:
-            words = query.split()
-            for med in Medicine.objects.all():
-                if med.name.lower() in query:
-                    ai_response = f"There are {med.quantity} units of {med.name} left."
-                    break
-            if not ai_response:
-                ai_response = "I couldn’t find that medicine in inventory."
+                Make your response short, professional, and easy to read (use bullet points where needed).
+                """
 
-        
-        else:
-            ai_response = "Sorry, I didn’t understand. Try asking things like 'low stock', 'expired', or 'how many Paracetamol left'."
+            #  Generate Gemini response
+            response = model.generate_content(prompt)
+            formatted_reply = response.text.replace("₹", "₹ ")  # small spacing fix
+            return JsonResponse({'reply': formatted_reply})
 
-    
-    medicines = Medicine.objects.all()
-    return render(request, "inventory/medicine_list.html", {"medicines": medicines, "ai_response": ai_response})
+        except Exception as e:
+            return JsonResponse({'error': str(e)})
 
-        
+    return HttpResponse('AI endpoint. Please send a POST request.')
+
+
+def list_models(request):
+    try:
+        models = list(genai.list_models())
+        model_names = [m.name for m in models]  # Extract model names
+        return JsonResponse({"available_models": model_names})
+    except Exception as e:
+        return JsonResponse({"error": str(e)})
+ 
+
+
+
+
+
 
         
 
