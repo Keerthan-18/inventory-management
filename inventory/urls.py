@@ -15,4 +15,5 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
     path('test-gemini/', views.test_gemini, name='test_gemini'),
     path("list-models/", views.list_models, name="list_models"),
+    path('dashboard/', views.dashboard, name='dashboard'),
 ]

@@ -55,11 +55,28 @@
       border-radius: 15px 15px 15px 0;
       display: inline-block;
       max-width: 85%;
-      white-space: pre-line; /* ✅ keeps line breaks from AI text */
+      white-space: pre-line; /* keeps line breaks from AI text */
   }
 
   .bot-msg strong {
       color: #007bff;
+  }
+
+  .suggestion-msg span {
+      background: #f0f9ff;
+      color: #0d6efd;
+      border: 1px solid #cfe2ff;
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      display: inline-block;
+      margin-left: 5px;
+      cursor: pointer;
+      transition: 0.2s;
+  }
+
+  .suggestion-msg span:hover {
+      background: #e2efff;
   }
 
   /* Smooth scroll effect */
@@ -80,6 +97,7 @@
       border-radius: 0 10px 10px 0;
   }
 </style>
+
 
 <!-- AI Assistant Section -->
 <div class="chatbox shadow-sm">
@@ -108,10 +126,11 @@
   </form>
 </div>
 
+
 <!--  Medicine Inventory Table -->
 <div class="container">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="text-primary">💊 Medicine Inventory</h1>
+    <h1 class="text-primary"> Medicine Inventory</h1>
     <a href="{% url 'medicine_add' %}" class="btn btn-success">+ Add Medicine</a>
   </div>
 
@@ -148,7 +167,7 @@
               <td>{{ medicine.name }}</td>
               <td>{{ medicine.category }}</td>
               <td>
-                {% if medicine.low_stock %}
+                {% if medicine.is_low_stock %}
                   <span class="badge bg-danger">{{ medicine.quantity }}</span>
                 {% else %}
                   {{ medicine.quantity }}
@@ -157,7 +176,7 @@
               <td>₹ {{ medicine.price }}</td>
               <td>{{ medicine.expiry_date }}</td>
               <td>
-                {% if medicine.low_stock %}
+                {% if medicine.is_low_stock %}
                   <span class="badge bg-danger">⚠ Low Stock</span>
                 {% endif %}
                 {% if medicine.expiring_soon %}
@@ -180,7 +199,6 @@
   </div>
 </div>
 
-<!-- JavaScript for Dynamic AI Chat -->
 <script>
 document.getElementById("aiForm").addEventListener("submit", async function(e) {
     e.preventDefault();
@@ -188,55 +206,46 @@ document.getElementById("aiForm").addEventListener("submit", async function(e) {
     const queryInput = document.getElementById("aiQuery");
     const query = queryInput.value.trim();
     const chatBox = document.getElementById("chatMessages");
-
     if (!query) return;
 
-    // Show user's question instantly
-    chatBox.innerHTML += `
-        <div class="user-msg message">
-            <span>${query}</span>
-        </div>
-    `;
+    chatBox.innerHTML += `<div class="user-msg message"><span>${query}</span></div>`;
     queryInput.value = "";
 
-    // Fetch AI response
-    const response = await fetch("{% url 'ai_query' %}", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-CSRFToken": "{{ csrf_token }}"
-        },
-        body: new URLSearchParams({ query: query })
-    });
+    showGlobalLoader(true);
+    setFormState(document.getElementById("aiForm"), true);
 
-    const data = await response.json();
+    try {
+        const response = await fetch("{% url 'ai_query' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: new URLSearchParams({ query: query })
+        });
 
-    if (data.reply) {
-        const formattedReply = data.reply
-            .replace(/\\u20b9/g, "₹")                        
-            .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") 
-            .replace(/•/g, "- ")                              
-            .replace(/\n{2,}/g, "<br><br>")                   
-            .replace(/\n/g, "<br>");                          
+        const data = await response.json();
 
-        chatBox.innerHTML += `
-            <div class="bot-msg message">
-                <span><strong>MedAI:</strong><br>${formattedReply}</span>
-            </div>
-        `;
-    } 
-    else if (data.error) {
-        chatBox.innerHTML += `
-            <div class="bot-msg message text-danger">
-                <span><strong>Error:</strong> ${data.error}</span>
-            </div>
-        `;
+        if (data.reply) {
+            // light formatting: bold and bullets, preserve newlines
+            let formatted = data.reply
+                .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+                .replace(/(?:^|\n)[\-\*\•]\s*(.*?)(?=\n|$)/g, "• $1<br>")
+                .replace(/\n/g, "<br>");
+
+            chatBox.innerHTML += `<div class="bot-msg message"><span><strong>MedAI:</strong><br>${formatted}</span></div>`;
+        } else if (data.error) {
+            chatBox.innerHTML += `<div class="bot-msg message text-danger"><span>Error: ${data.error}</span></div>`;
+        }
+    } catch (err) {
+        chatBox.innerHTML += `<div class="bot-msg message text-danger"><span>Error: ${err.message}</span></div>`;
+    } finally {
+        showGlobalLoader(false);
+        setFormState(document.getElementById("aiForm"), false);
+        chatBox.scrollTop = chatBox.scrollHeight;
     }
-
-    // Always scroll to the latest message
-    chatBox.scrollTop = chatBox.scrollHeight;
 });
 </script>
 
-{% endblock %}
 
+{% endblock %}

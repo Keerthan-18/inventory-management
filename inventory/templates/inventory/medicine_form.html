@@ -14,111 +14,43 @@
       </h3>
     </div>
 
-    <div class="card-body p-4">
-      <form method="post" class="needs-validation" novalidate>
-        {% csrf_token %}
+   <div class="card-body">
+  <form method="post" class="needs-validation" novalidate>
+    {% csrf_token %}
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Name</label>
+        <input type="text" name="name" class="form-control" value="{{ medicine.name|default:'' }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Category</label>
+        <input type="text" name="category" class="form-control" value="{{ medicine.category|default:'' }}" required>
+      </div>
 
-        <!-- Name -->
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Name</label>
-          <input 
-            type="text" 
-            name="name" 
-            class="form-control form-control-lg rounded-3 shadow-sm" 
-            value="{{ medicine.name|default:'' }}" 
-            placeholder="Enter medicine name"
-            required>
-        </div>
+      <div class="col-md-4">
+        <label class="form-label">Quantity</label>
+        <input type="number" name="quantity" class="form-control" value="{{ medicine.quantity|default:'' }}" min="0" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Price (₹)</label>
+        <input type="number" step="0.01" name="price" class="form-control" value="{{ medicine.price|default:'' }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Reorder level</label>
+        <input type="number" name="reorder_level" class="form-control" value="{{ medicine.reorder_level|default:'' }}">
+      </div>
 
-        <!-- Category -->
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Category</label>
-          <input 
-            type="text" 
-            name="category" 
-            class="form-control form-control-lg rounded-3 shadow-sm" 
-            value="{{ medicine.category|default:'' }}" 
-            placeholder="e.g. Tablet, Syrup, Capsule"
-            required>
-        </div>
+      <div class="col-12 col-md-6">
+        <label class="form-label">Expiry Date</label>
+        <input type="date" name="expiry_date" class="form-control" value="{{ medicine.expiry_date|date:'Y-m-d' }}" required>
+      </div>
 
-        <!-- Quantity -->
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Quantity</label>
-          <input 
-            type="number" 
-            name="quantity" 
-            class="form-control form-control-lg rounded-3 shadow-sm" 
-            value="{{ medicine.quantity|default:'' }}" 
-            min="0" 
-            placeholder="Enter available stock quantity"
-            required>
-        </div>
-
-        <!-- Price -->
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Price (₹)</label>
-          <input 
-            type="number" 
-            step="0.01" 
-            name="price" 
-            class="form-control form-control-lg rounded-3 shadow-sm" 
-            value="{{ medicine.price|default:'' }}" 
-            placeholder="Enter price per unit"
-            required>
-        </div>
-
-        <!-- Expiry Date -->
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Expiry Date</label>
-          <input 
-            type="date" 
-            name="expiry_date" 
-            class="form-control form-control-lg rounded-3 shadow-sm" 
-            value="{{ medicine.expiry_date|date:'Y-m-d' }}" 
-            required>
-        </div>
-
-        <!--Reorder Level -->
-        <div class="mb-4">
-          <label class="form-label fw-semibold">Reorder Level</label>
-          <input 
-            type="number" 
-            name="reorder_level" 
-            class="form-control form-control-lg rounded-3 shadow-sm" 
-            value="{{ medicine.reorder_level|default:0 }}" 
-            min="0" 
-            placeholder="Enter reorder threshold (e.g., 10)">
-        </div>
-
-        <!-- Buttons -->
-        <div class="d-flex justify-content-between align-items-center mt-4">
-          <a href="{% url 'medicine_list' %}" 
-             class="btn btn-outline-secondary btn-lg px-4 rounded-3 shadow-sm">
-             Back
-          </a>
-          <button type="submit" 
-                  class="btn btn-primary btn-lg px-5 rounded-3 shadow-sm">
-             Save
-          </button>
-        </div>
-      </form>
+      <div class="col-12 d-flex justify-content-between mt-3">
+        <a href="{% url 'medicine_list' %}" class="btn btn-secondary">⬅ Back</a>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
     </div>
-  </div>
+  </form>
 </div>
 
-<!-- Inline CSS Enhancements -->
-<style>
-  body {
-    background: linear-gradient(135deg, #eef2f7, #d9e8ff);
-  }
-  .card {
-    max-width: 650px;
-    margin: 0 auto;
-  }
-  input:focus {
-    border-color: #007bff;
-    box-shadow: 0 0 6px rgba(0, 123, 255, 0.4);
-  }
-</style>
 {% endblock %}

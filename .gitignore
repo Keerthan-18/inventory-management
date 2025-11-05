@@ -1,32 +1,36 @@
-# Django-related
-.env
+# Django and Python
 *.pyc
+*.pyo
+*.pyd
 __pycache__/
 *.log
 *.pot
 *.py[cod]
 db.sqlite3
 
-# Virtual environments
+# Environment Variables
+.env
 
+#Virtual Environments
 venv/
 .venv/
 env/
 ENV/
 
-
+# IDE & Editor Settings
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-
+#System Files
 .DS_Store
 Thumbs.db
 desktop.ini
 
+# Static and Media
 staticfiles/
 media/
 
+#Migration Caches
 */migrations/__pycache__/
-.env

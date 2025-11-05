@@ -8,7 +8,7 @@ from django.conf import settings
 
 load_dotenv()
 genai.configure(api_key=settings.GOOGLE_API_KEY)
-# AIzaSyBQRwJ
+
 
 from django.http import JsonResponse
 from .models import Medicine
@@ -22,27 +22,25 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from datetime import date, timedelta
 
-
-
 @login_required
 def medicine_list(request):
-    query = request.GET.get('q')   # Get search text if user searched
+    query = request.GET.get('q')   
     medicines = Medicine.objects.all()
 
-    # Apply search filter (if query exists)
     if query:
         medicines = medicines.filter(name__icontains=query) | medicines.filter(category__icontains=query)
-        
-    # Check low stock & expiry alerts
+
     today = date.today()
     for med in medicines:
-        med.low_stock = med.quantity < 10  # Alert if quantity < 10
-        med.expiring_soon = med.expiry_date <= today + timedelta(days=30)  # Alert if expiring in next 30 days
+        med.is_low_stock = med.quantity < 150
+        med.is_expiring_soon = med.expiry_date <= today + timedelta(days=30)
 
     return render(request, 'inventory/medicine_list.html', {
         'medicines': medicines,
         'query': query
     })
+
+
 
 @login_required
 def medicine_add(request):
@@ -100,68 +98,151 @@ def test_gemini(request):
 
 
 
-
-from django.db import models
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse, HttpResponse
-import google.generativeai as genai
+import re
+from django.db import models
 
 @csrf_exempt
 def ai_query(request):
-    if request.method == 'POST':
-        user_query = request.POST.get('query', "").strip()
+    if request.method != "POST":
+        return HttpResponse("AI endpoint. Please send a POST request.")
 
-        try:
-            
-            model = genai.GenerativeModel("models/gemini-2.5-flash")
-            medicines = Medicine.objects.all()
-            medicine_data = "\n".join(
-                [f"{m.name} | {m.category} | Qty: {m.quantity} | Price: ₹{m.price} | Expiry: {m.expiry_date}"
-                 for m in medicines]
+    user_query = (request.POST.get('query') or "").strip()
+    uq_lower = user_query.lower()
+
+    medicines = Medicine.objects.all()
+
+    if not medicines.exists():
+        return JsonResponse({'reply': "The inventory is currently empty. Please add some medicines first."})
+
+
+
+
+@csrf_exempt
+def ai_query(request):
+    """
+    MedAI — Intelligent Pharmacy Assistant
+    Gives complete, informative answers using both:
+     1. Local inventory database (structured data)
+     2. Gemini model (medical + natural language reasoning)
+    """
+    if request.method != "POST":
+        return HttpResponse("AI endpoint. Please send a POST request.")
+
+    user_query = (request.POST.get("query") or "").strip()
+    uq_lower = user_query.lower()
+
+    # Keyword groups for intent recognition
+    quantity_keywords = ["how many", "left", "quantity", "qty", "units"]
+    reorder_keywords = ["reorder", "restock", "low stock", "below reorder"]
+    expiry_keywords = ["expire", "expiring", "expiry", "expiration"]
+    medical_keywords = [
+        "prescribe", "prescribed", "dosage", "dose", "take", "before meal",
+        "after meal", "how many times", "when to give", "when should", "use for",
+        "indication", "contraindication", "side effect", "side effects", "how to use",
+        "tablet", "capsule", "medicine"
+    ]
+
+    try:
+        # Load inventory data from database
+        medicines = Medicine.objects.all()
+        medicine_data = "\n".join(
+            [
+                f"{m.name} | Category: {m.category} | Qty: {m.quantity} | Reorder Level: {m.reorder_level} | Price: ₹{m.price} | Expiry: {m.expiry_date}"
+                for m in medicines
+            ]
+        )
+
+        #  INVENTORY QUERIES — "how many left" / "expiring soon" / "low stock"
+        if any(kw in uq_lower for kw in quantity_keywords):
+            found_med = None
+            for m in medicines:
+                if m.name.lower() in uq_lower:
+                    found_med = m
+                    break
+            if found_med:
+                reply = f"There are <strong>{found_med.quantity}</strong> units of <strong>{found_med.name}</strong> left in stock."
+                if found_med.quantity < found_med.reorder_level:
+                    reply += f"  This is below the reorder level ({found_med.reorder_level}). Please restock soon."
+                return JsonResponse({"reply": reply})
+            return JsonResponse({"reply": "I couldn’t find that medicine in the inventory."})
+
+        if any(kw in uq_lower for kw in reorder_keywords):
+            low_stock_meds = Medicine.objects.filter(quantity__lt=models.F("reorder_level"))
+            if not low_stock_meds:
+                return JsonResponse({"reply": " All medicines are above their reorder levels."})
+            formatted = "<br>".join(
+                [
+                    f"• <strong>{m.name}</strong> — Qty: {m.quantity}, Reorder Level: {m.reorder_level}"
+                    for m in low_stock_meds
+                ]
             )
+            reply = (
+                "<strong>Medicines that need restocking:</strong><br>"
+                f"{formatted}<br><br>"
+                " Tip: Maintain at least twice the reorder level to avoid stockouts."
+            )
+            return JsonResponse({"reply": reply})
 
-            inventory_keywords = ["stock", "quantity", "available", "expired", "expiring", "price", "low stock"]
-            is_inventory_related = any(word in user_query.lower() for word in inventory_keywords)
+        if any(kw in uq_lower for kw in expiry_keywords):
+            today = date.today()
+            expiring = Medicine.objects.filter(expiry_date__lte=today + timedelta(days=30))
+            if not expiring:
+                return JsonResponse({"reply": " No medicines are expiring soon."})
+            formatted = "<br>".join(
+                [
+                    f"• <strong>{m.name}</strong> — Expiry: {m.expiry_date}, Qty: {m.quantity}"
+                    for m in expiring
+                ]
+            )
+            reply = (
+                "<strong>Medicines expiring soon (within 30 days):</strong><br>"
+                f"{formatted}<br><br>"
+                "Please follow FEFO (First Expire, First Out) to avoid wastage."
+            )
+            return JsonResponse({"reply": reply})
 
-            # Create context-aware system prompt
-            if is_inventory_related:
-                prompt = f"""
-                You are MedAI, an intelligent pharmacy assistant managing this medicine inventory:
+        if any(kw in uq_lower for kw in medical_keywords):
+            model = genai.GenerativeModel("models/gemini-2.5-flash")
+            prompt = f"""
+You are MedAI, a professional and safety-focused pharmacy assistant.
+You have access to this inventory data:
 
-                {medicine_data}
+{medicine_data}
 
-                The user asked: "{user_query}"
+User Question: "{user_query}"
 
-                Using the data above, respond ONLY with medicines that match the question.
-                - Show results in a neat readable list or table format.
-                - Use bullet points (•) and line breaks for clarity.
-                - Do NOT make up medicines that are not in the list.
-                - Example: “• Paracetamol — Qty: 12 | Expiry: 2026-04-12 | Price: ₹25.00”
-                """
-            else:
-                prompt = f"""
-                You are MedAI, a trusted pharmacy and medical guidance assistant.
-
-                The user asked: "{user_query}"
-
-                Provide a clear, medically sound, and concise answer about:
-                - When the medicine should be prescribed
-                - How often to take it
-                - Whether before or after meals
-                - Any common precautions or warnings.
-
-                Make your response short, professional, and easy to read (use bullet points where needed).
-                """
-
-            #  Generate Gemini response
+Your task:
+1. If the medicine exists in the inventory, mention its quantity and expiry.
+2. Then give general medical details — its common uses, dosage, timing (before/after food), and precautions.
+3. Keep tone clear, informative, and concise.
+4. End with a safety note:
+   " This information is for educational purposes only. Always consult a certified doctor or pharmacist before using any medicine."
+"""
             response = model.generate_content(prompt)
-            formatted_reply = response.text.replace("₹", "₹ ")  # small spacing fix
-            return JsonResponse({'reply': formatted_reply})
+            text = (response.text or "").replace("\\u20b9", "₹").strip()
+            return JsonResponse({"reply": text})
 
-        except Exception as e:
-            return JsonResponse({'error': str(e)})
+        
+        model = genai.GenerativeModel("models/gemini-2.5-flash")
+        prompt = f"""
+You are MedAI, a pharmacy assistant integrated with an inventory system.
+Here is the current inventory:
+{medicine_data}
 
-    return HttpResponse('AI endpoint. Please send a POST request.')
+User question: "{user_query}"
+
+If relevant, use inventory data to answer. Otherwise, give a short, helpful, and professional response related to pharmacy or medicines.
+"""
+        response = model.generate_content(prompt)
+        text = (response.text or "").replace("\\u20b9", "₹").strip()
+        return JsonResponse({"reply": text})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)})
+
+
 
 
 def list_models(request):
@@ -171,6 +252,51 @@ def list_models(request):
         return JsonResponse({"available_models": model_names})
     except Exception as e:
         return JsonResponse({"error": str(e)})
+
+from django.db.models import Count, Avg
+from datetime import date, timedelta
+
+from django.db.models import Sum, Avg
+
+@login_required
+def dashboard(request):
+    from datetime import date, timedelta
+    from django.db.models import Sum, Avg
+
+    today = date.today()
+    total_medicines = Medicine.objects.count()
+    low_stock_count = Medicine.objects.filter(quantity__lt=10).count()
+    expiring_soon_count = Medicine.objects.filter(
+        expiry_date__lte=today + timedelta(days=30)
+    ).count()
+
+    healthy_count = total_medicines - low_stock_count - expiring_soon_count
+
+    category_stats = Medicine.objects.values('category').annotate(
+        total_qty=Sum('quantity'),
+        avg_price=Avg('price')
+    )
+
+    top_medicines = Medicine.objects.order_by('-quantity')[:5]
+
+    categories = [c['category'] for c in category_stats]
+    quantities = [c['total_qty'] for c in category_stats]
+    avg_prices = [round(c['avg_price'], 2) for c in category_stats]
+
+    context = {
+        'total_medicines': total_medicines,
+        'low_stock_count': low_stock_count,
+        'expiring_soon_count': expiring_soon_count,
+        'healthy_count': healthy_count,
+        'categories': categories,
+        'quantities': quantities,
+        'avg_prices': avg_prices,
+        'top_medicines': top_medicines,
+    }
+
+    return render(request, "inventory/dashboard.html", context)
+
+
  
 
 

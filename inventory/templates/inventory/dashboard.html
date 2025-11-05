@@ -1,0 +1,81 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-primary mb-4"> Inventory Analytics Dashboard</h2>
+
+  <!-- Summary Cards -->
+  <div class="row text-center mb-4">
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0"><div class="card-body">
+        <h6>Total Medicines</h6>
+        <h3 class="text-primary">{{ total_medicines }}</h3>
+      </div></div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0"><div class="card-body">
+        <h6>Low Stock</h6>
+        <h3 class="text-danger">{{ low_stock_count }}</h3>
+      </div></div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0"><div class="card-body">
+        <h6>Expiring Soon</h6>
+        <h3 class="text-warning">{{ expiring_soon_count }}</h3>
+      </div></div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0"><div class="card-body">
+        <h6>Healthy Stock</h6>
+        <h3 class="text-success">{{ healthy_count }}</h3>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- Category-wise Chart -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h5> Stock by Category</h5>
+      <canvas id="categoryChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Top 5 Medicines -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5> Top 5 Medicines by Quantity</h5>
+      <table class="table table-striped">
+        <thead><tr><th>Name</th><th>Category</th><th>Quantity</th></tr></thead>
+        <tbody>
+          {% for med in top_medicines %}
+            <tr><td>{{ med.name }}</td><td>{{ med.category }}</td><td>{{ med.quantity }}</td></tr>
+          {% empty %}
+            <tr><td colspan="3" class="text-muted">No data</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('categoryChart');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ categories|safe }},
+        datasets: [{
+            label: 'Total Quantity',
+            data: {{ quantities|safe }},
+            backgroundColor: '#007bff'
+        }]
+    },
+    options: { responsive: true }
+});
+</script>
+{% endblock %}

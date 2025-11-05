@@ -10,14 +10,19 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
-from pathlib import Path
 
 import os
+import environ
+import dj_database_url
 from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+load_dotenv()
+env=environ.Env(
+    DEBUG=(bool,False)
+)
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
@@ -27,12 +32,13 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-6v96b&cfsvbzs-2w5h$g=m8ct*3um%x$6xc=viww7o*v46ewp!'
+SECRET_KEY = os.getenv("SECRET_KEY")
+# SECRET_KEY = 'django-insecure-6v96b&cfsvbzs-2w5h$g=m8ct*3um%x$6xc=viww7o*v46ewp!'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "False")=="True"
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", "*").split(",")
 
 
 # Application definition
@@ -83,10 +89,11 @@ WSGI_APPLICATION = 'inventory_management.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL'),
+        conn_max_age=600,
+        ssl_require=True
+    )
 }
 
 
