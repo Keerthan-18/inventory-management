@@ -38,7 +38,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False")=="True"
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS").split(",")
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost"])
 
 
 # Application definition
@@ -88,11 +88,11 @@ WSGI_APPLICATION = 'inventory_management.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+import dj_database_url
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL'),
-        conn_max_age=600,
-        ssl_require=True
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
     )
 }
 
