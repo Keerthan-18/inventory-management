@@ -141,3 +141,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = '/inventory/'
 LOGOUT_REDIRECT_URL = '/'
 
+# LOGIN_REDIRECT_URL = 'medicine_list'
+# LOGOUT_REDIRECT_URL = 'login'
+# LOGIN_URL = 'login'
+
+
+
+
+
+
